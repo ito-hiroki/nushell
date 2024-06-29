@@ -934,15 +934,12 @@ pub fn parse_internal_call(
     let output = signature.get_output_type();
 
     // storing the var ID for later due to borrowing issues
-    let lib_dirs_var_id = if decl.is_builtin() {
-        match decl.name() {
-            "use" | "overlay use" | "source-env" | "nu-check" => {
-                find_dirs_var(working_set, LIB_DIRS_VAR)
-            }
-            _ => None,
+    let lib_dirs_var_id = match decl.name() {
+        "use" | "overlay use" | "source-env" if decl.is_keyword() => {
+            find_dirs_var(working_set, LIB_DIRS_VAR)
         }
-    } else {
-        None
+        "nu-check" if decl.is_builtin() => find_dirs_var(working_set, LIB_DIRS_VAR),
+        _ => None,
     };
 
     // The index into the positional parameter in the definition
@@ -2830,6 +2827,36 @@ pub fn parse_string(working_set: &mut StateWorkingSet, span: Span) -> Expression
     // Check for bare word interpolation
     if bytes[0] != b'\'' && bytes[0] != b'"' && bytes[0] != b'`' && bytes.contains(&b'(') {
         return parse_string_interpolation(working_set, span);
+    }
+    // Check for unbalanced quotes:
+    {
+        if bytes.starts_with(b"\"")
+            && (bytes.iter().filter(|ch| **ch == b'"').count() > 1 && !bytes.ends_with(b"\""))
+        {
+            let close_delimiter_index = bytes
+                .iter()
+                .skip(1)
+                .position(|ch| *ch == b'"')
+                .expect("Already check input bytes contains at least two double quotes");
+            // needs `+2` rather than `+1`, because we have skip 1 to find close_delimiter_index before.
+            let span = Span::new(span.start + close_delimiter_index + 2, span.end);
+            working_set.error(ParseError::ExtraTokensAfterClosingDelimiter(span));
+            return garbage(working_set, span);
+        }
+
+        if bytes.starts_with(b"\'")
+            && (bytes.iter().filter(|ch| **ch == b'\'').count() > 1 && !bytes.ends_with(b"\'"))
+        {
+            let close_delimiter_index = bytes
+                .iter()
+                .skip(1)
+                .position(|ch| *ch == b'\'')
+                .expect("Already check input bytes contains at least two double quotes");
+            // needs `+2` rather than `+1`, because we have skip 1 to find close_delimiter_index before.
+            let span = Span::new(span.start + close_delimiter_index + 2, span.end);
+            working_set.error(ParseError::ExtraTokensAfterClosingDelimiter(span));
+            return garbage(working_set, span);
+        }
     }
 
     let (s, err) = unescape_unquote_string(bytes, span);
@@ -5380,7 +5407,7 @@ pub fn parse_builtin_commands(
         }
         b"alias" => parse_alias(working_set, lite_command, None),
         b"module" => parse_module(working_set, lite_command, None).0,
-        b"use" => parse_use(working_set, lite_command).0,
+        b"use" => parse_use(working_set, lite_command, None).0,
         b"overlay" => {
             if let Some(redirection) = lite_command.redirection.as_ref() {
                 working_set.error(redirecting_builtin_error("overlay", redirection));
