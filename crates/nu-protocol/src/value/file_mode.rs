@@ -41,17 +41,11 @@ impl FileMode {
         mode
     }
 
-    pub fn get_mode_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         let mut mode_string = String::new();
-        mode_string.push(if self.user.read { 'r' } else { '-' });
-        mode_string.push(if self.user.write { 'w' } else { '-' });
-        mode_string.push(if self.user.execute { 'x' } else { '-' });
-        mode_string.push(if self.group.read { 'r' } else { '-' });
-        mode_string.push(if self.group.write { 'w' } else { '-' });
-        mode_string.push(if self.group.execute { 'x' } else { '-' });
-        mode_string.push(if self.other.read { 'r' } else { '-' });
-        mode_string.push(if self.other.write { 'w' } else { '-' });
-        mode_string.push(if self.other.execute { 'x' } else { '-' });
+        mode_string.push_str(&self.user.to_string());
+        mode_string.push_str(&self.group.to_string());
+        mode_string.push_str(&self.other.to_string());
         mode_string
     }
 
@@ -82,7 +76,7 @@ impl From<u32> for FileMode {
 
 impl fmt::Display for FileMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.get_mode_string())
+        write!(f, "{}", self.to_string())
     }
 }
 
